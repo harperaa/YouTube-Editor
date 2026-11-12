@@ -1,5 +1,9 @@
 # My YouTube editor: the Claude Code skill
 
+> **Credit:** Derived from resources provided by **Christian Peverelli**
+> ([WeAreNoCode community](https://www.skool.com/wearenocode)). This version extends his original kit; see
+> "What this version adds" below.
+
 This is the skill that edits my YouTube videos. It's the one from my video "I Fully Automated My Video Editing Using Claude Code (Full Walkthrough)".
 
 I record, drop the raw files into Claude Code, and it hands me back a first version: every cut, zoom, animation, sound effect and music bed, rendered in 4K. I watch it, give it notes, and anything worth keeping goes back into the skill. That last part is why it keeps getting better. Every rule in it came from a real note I gave on a real video.
