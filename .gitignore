@@ -14,3 +14,20 @@ videos/
 __pycache__/
 *.pyc
 node_modules/
+
+# Render / pipeline output anywhere in the tree
+out/
+output/
+outputs/
+render/
+renders/
+public/
+snaps/
+dist/
+build/
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.mp3
+*.m4a
