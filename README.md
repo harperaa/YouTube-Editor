@@ -14,13 +14,80 @@ I record, drop the raw files into Claude Code, and it hands me back a first vers
 | `STYLE-GUIDE.md` | My look: colours, font, cards, motion, camera, sound and cuts. Change it to yours. |
 | `LICENSES/` | The licences for the font and for the code parts adapted from an open-source starter kit. |
 
-## Install in four steps
+## Install
 
-1. Set up Claude Code: `SETUP.md`, steps 1 to 6.
-2. Put this folder inside the project folder you work in.
-3. Type this into Claude Code:
-   > Install the youtube-edit skill from the WeAreNoCode-YouTube-Editor folder into this project's .claude/skills folder. Then check everything it needs, install what's missing, and run its tests.
-4. Drop in a raw clip and use the first editing prompt from `PROMPTS.md`.
+New to Claude Code? Do `SETUP.md` steps 1 to 6 first (the app, a plan, permissions, connectors). Then pick one of
+these.
+
+### Option A: clone it and work in it (easiest)
+
+The repo is already a ready-to-go project: the skill sits in `.claude/skills/youtube-edit/`, where Claude Code
+loads it.
+
+```bash
+git clone https://github.com/harperaa/YouTube-Editor.git
+cd YouTube-Editor
+claude
+```
+
+Your videos go in `videos/<project>/` inside it. That folder is git-ignored, so footage and renders never get
+committed.
+
+### Option B: add the skill to a project you already have
+
+```bash
+git clone https://github.com/harperaa/YouTube-Editor.git /tmp/YouTube-Editor
+mkdir -p .claude/skills
+cp -R /tmp/YouTube-Editor/youtube-edit .claude/skills/
+```
+
+Run that from your project folder. To get the skill in every project, copy it to `~/.claude/skills/` instead.
+
+Prefer to let Claude do it? Put the cloned folder inside your project and type:
+
+> Install the youtube-edit skill from the YouTube-Editor folder into this project's .claude/skills folder. Then check everything it needs, install what's missing, and run its tests.
+
+### Install what it needs
+
+Claude checks and installs these itself the first time you use the skill (see "Setup check" in `SKILL.md`).
+If you'd rather do it by hand on a Mac:
+
+| Tool | What it's for | Install |
+|---|---|---|
+| Node.js 22+ | runs HyperFrames | `brew install node` |
+| HyperFrames | draws the animations, renders the frames | comes through `npx`; then `npx hyperframes doctor` |
+| Parakeet | writes down every word with its exact time | `npx hyperframes models install parakeet` |
+| FFmpeg | cuts, joins and encodes the video | `brew install ffmpeg` |
+| Python 3 + numpy | the cutting and audio scripts | `python3 -m pip install numpy` |
+| auto-editor | finds where you speak | `pip install auto-editor` or `brew install auto-editor` |
+| Google Chrome | snapshots and renders | google.com/chrome |
+
+On Windows, `winget install ffmpeg` and nodejs.org stand in for the brew lines.
+
+Check it all with:
+
+```bash
+node -v && npx hyperframes --version && npx hyperframes doctor
+ffmpeg -version && python3 -c "import numpy" && auto-editor --version
+cd .claude/skills/youtube-edit/scripts && python3 -m unittest tests   # must end with OK
+```
+
+### API keys (optional)
+
+For stock B-roll and music, make a file named `.env.local` in your project folder, one key per line:
+
+```
+PEXELS_API_KEY=your-pexels-key
+PIXABAY_API_KEY=your-pixabay-key
+EPIDEMIC_SOUND_API_KEY=your-epidemic-key
+```
+
+Type the keys into the file yourself. Never paste them into the chat. `.env.local` is git-ignored.
+
+### First edit
+
+Open a **new** Claude Code thread (skills load when a thread starts). Drop in a raw clip and use the first editing
+prompt from `PROMPTS.md`. Start with a 30 to 60 second hook.
 
 ## What it costs to run
 
