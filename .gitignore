@@ -1,0 +1,16 @@
+# API keys (Pexels, Pixabay, Epidemic Sound): never commit
+.env
+.env.*
+!.env.example
+
+# Local Claude Code settings (may hold API keys)
+.claude/settings.local.json
+
+# Video projects: footage, renders, licensed music/sfx (90+ GB, private)
+videos/
+
+# OS / Python / Node cruft
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
