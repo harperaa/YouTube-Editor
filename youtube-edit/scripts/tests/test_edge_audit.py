@@ -19,10 +19,15 @@ def make(d, tones, words, kept, dur=4.0):
     write(os.path.join(d, "cut-list.json"), {"kept": [{"start": s, "end": e} for s, e in kept]})
 
 
-def fix(test, d):
+def audit(test, d, *extra):
     r = run("edge-audit.py", "--audio", os.path.join(d, "audio.wav"), "--cut-list", os.path.join(d, "cut-list.json"),
-            "--transcript", os.path.join(d, "transcript.json"), "--fix")
+            "--transcript", os.path.join(d, "transcript.json"), *extra)
     test.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+    return r.stdout
+
+
+def fix(test, d, *extra):
+    audit(test, d, "--fix", *extra)
     return load(os.path.join(d, "cut-list.json"))["kept"]
 
 
@@ -36,6 +41,23 @@ class EdgeAuditFix(unittest.TestCase):
         self.assertEqual(len(K), 2, K)
         self.assertGreaterEqual(K[1]["start"], 2.0, "head moved back over the dropped 1.75-2.05 word: %s" % K)
         self.assertLessEqual(K[1]["start"], 2.15, "head cut into the kept 2.15 word: %s" % K)
+
+    def test_clean_cut_reports_no_issues(self):
+        d = scratch(self)
+        tones = [(0.5, 1.2), (2.15, 3.5)]
+        make(d, tones, tones, [(0.4, 1.35), (2.05, 3.6)])
+        self.assertIn("2 segments, 0 issues", audit(self, d))
+        self.assertEqual(fix(self, d), [{"start": 0.4, "end": 1.35}, {"start": 2.05, "end": 3.6}])
+
+    def test_keeps_still_anchor_on_kept_word_before_start(self):
+        # with --keeps, a kept word that starts 0.2 s before the segment is the anchor (the "if you want the" case)
+        d = scratch(self)
+        tones = [(0.5, 1.2), (1.8, 3.5)]
+        make(d, tones, tones, [(0.4, 1.35), (2.0, 3.6)])
+        write(os.path.join(d, "keeps.args"), "--keep 0.4-1.35 --keep 1.75-3.6")
+        K = fix(self, d, "--keeps", os.path.join(d, "keeps.args"))
+        self.assertGreaterEqual(K[1]["start"], 1.35, K)
+        self.assertLess(K[1]["start"], 1.8, "kept word 1.8 lost its head: %s" % K)
 
     def test_head_fix_never_overlaps_previous_segment(self):
         # a word straddles the join: it starts in segment 0, segment 1 starts while it still plays
