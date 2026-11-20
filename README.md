@@ -162,7 +162,7 @@ That's how mine learned. Every note I've saved, it hasn't made that mistake agai
 
 ## Where to get help
 
-Questions go in the community: https://www.skool.com/ai-cyber-value-creators
+Questions go in the Skool community: https://www.skool.com/ai-cyber-value-creators
 
 ## Licences
 
