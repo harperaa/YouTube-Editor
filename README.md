@@ -148,7 +148,7 @@ These were added on top of the version from the video:
 
 ## What it costs to run
 
-The skill itself is free, and so are most of the tools it uses (HyperFrames, FFmpeg, auto-editor, the Parakeet transcription). The $20 Claude plan is enough to set everything up. Editing a full video uses a lot more: I'm on the $200 Max plan, and in the video I break down what one video costs me. Tella (screen recordings) and Epidemic Sound (music) are paid tools I use. You can skip both: record your screen with anything, and pull sounds from the free library the skill points to.
+The skill itself is free, and so are most of the tools it uses (HyperFrames, FFmpeg, auto-editor, the Parakeet transcription). The $20 Claude plan is enough to set everything up. Editing a full video uses a lot more: I'm on the $200 Max plan. Tella (screen recordings) and Epidemic Sound (music) are paid tools I use. You can skip both: record your screen with anything, and pull sounds from the free library the skill points to.
 
 ## Make it yours
 
@@ -162,7 +162,7 @@ That's how mine learned. Every note I've saved, it hasn't made that mistake agai
 
 ## Where to get help
 
-Questions go in the free community, in the post for this video: https://www.skool.com/wearenocode
+Questions go in the community: https://www.skool.com/ai-cyber-value-creators
 
 ## Licences
 
