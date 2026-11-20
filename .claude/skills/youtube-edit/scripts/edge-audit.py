@@ -9,9 +9,13 @@ looks clean while the viewer hears "right. [ght] A couple hours ago". Three glit
 
 Fixes, in the direction that never loses a kept word:
   - a loud head moves to the quietest 10 ms in [first kept word start - 0.28, first kept word start + 0.10]
-    (search BACKWARD from the first kept word; searching forward from the old start skipped "if you want the"),
-  - a loud tail moves to the quietest 10 ms in [end - 0.35, end], never before the last kept word's start + 0.15,
-  - a short fragment (< 0.5 s, no kept word) is dropped.
+    (search BACKWARD from the first kept word; searching forward from the old start skipped "if you want the").
+    The first kept word starts at or after the previous segment's end and at most 0.05 s before the old start
+    (0.35 s with --keeps); without --keeps an earlier word may be the last word of a dropped take,
+  - a loud tail moves to the quietest 10 ms in [end - 0.35, end], never before the start + 0.15 of the last word
+    the segment holds at least 0.15 s of,
+  - a short fragment (< 0.5 s, no kept word) is dropped,
+  - no fix moves a start before the previous segment's end, or an end past its own end or the next segment's start.
 
 Usage:
   edge-audit.py --audio W/audio-raw.wav --cut-list W/cut-list.json --transcript W/transcript-raw.json
@@ -40,19 +44,24 @@ kept = lambda t: (not keeps) or any(k0 - 0.02 <= t <= k1 + 0.02 for k0, k1 in ke
 C = json.load(open(a.cut_list)); K = C["kept"]; issues, out = [], []
 for i, s in enumerate(K):
     st, en = s["start"], s["end"]
-    words = [q for q in T if st - 0.35 <= q["start"] < en and kept(q["start"])]
+    prev_end = out[-1]["end"] if out else float("-inf")                         # an edge never crosses a neighbour:
+    next_st = K[i + 1]["start"] if i + 1 < len(K) else float("inf")             # that plays the same audio twice
+    # without --keeps a word starting before the segment can't be told from a dropped take, so it is never an anchor
+    lo = max(prev_end, st - (0.35 if keeps else 0.05))
+    words = [q for q in T if lo <= q["start"] < en and kept(q["start"])]
     if en - st < 0.5 and not any(st - 0.05 <= q["start"] < en for q in words):
         issues.append("seg %d %.2f-%.2f: short fragment, no kept word" % (i, st, en))
         if a.fix: continue
     if rms(st, st + 0.03) > a.threshold:
         issues.append("seg %d starts mid-sound at %.2f (rms %d)" % (i, st, rms(st, st + 0.03)))
         if a.fix and words:
-            t, v = valley(words[0]["start"] - 0.28, words[0]["start"] + 0.10); s["start"] = t
+            t, v = valley(max(words[0]["start"] - 0.28, prev_end), words[0]["start"] + 0.10); s["start"] = max(t, prev_end)
     if rms(en - 0.03, en) > a.threshold:
         issues.append("seg %d ends mid-sound at %.2f (rms %d)" % (i, en, rms(en - 0.03, en)))
         if a.fix:
-            floor = (words[-1]["start"] + 0.15) if words else st + 0.2
-            t, v = valley(max(en - 0.35, floor), en); s["end"] = t
+            held = [q for q in words if q["start"] + 0.15 <= en]                # a word the segment holds 0.15 s of;
+            floor = (held[-1]["start"] + 0.15) if held else s["start"] + 0.2    # a shorter onset is a leaked sliver
+            t, v = valley(min(max(en - 0.35, floor), en - 0.02), en); s["end"] = min(t, en, next_st)
     out.append(s)
 print("%d segments, %d issues" % (len(K), len(issues))); print("\n".join(issues))
 if a.fix:
