@@ -30,11 +30,11 @@ class FinishMaster(unittest.TestCase):
         self.assertIn("3 chapters", r.stdout)
         self.assertTrue(os.path.exists(os.path.join(d, "t-4k.mp4")) and os.path.exists(os.path.join(d, "t-nomusic-4k.mp4")))
         # the bed is set by its measured level under the voice (the ducking once buried a -21.5 dB bed ~30 dB under it)
-        self.assertRegex(r.stdout, r"OK   bed hook 1[3-5]\.\d dB under the voice in the master \(target 14\.2")
-        self.assertRegex(r.stdout, r"OK   bed body 1[6-8]\.\d dB under the voice in the master \(target 17\.2")
+        self.assertRegex(r.stdout, r"OK   bed hook 1[5-7]\.\d dB under the voice in the master \(target 16\.2")
+        self.assertRegex(r.stdout, r"OK   bed body (1[89]|20)\.\d dB under the voice in the master \(target 19\.2")
 
     def test_bed_level_is_independently_audible(self):
-        # decode the master and the no-music master, subtract, and check the bed really sits ~17 dB under the voice
+        # decode the master and the no-music master, subtract, and check the bed really sits ~19 dB under the voice
         import numpy as np
         d = scratch(self)
         src, bed = self.media(d)
@@ -50,7 +50,30 @@ class FinishMaster(unittest.TestCase):
         fv = (v[w].reshape(-1, 1600) ** 2).mean(axis=1); fb = (b[w].reshape(-1, 1600) ** 2).mean(axis=1)
         sp = fv > fv.max() * 1e-3
         under = 10 * np.log10(fv[sp].mean() / fb[sp].mean())
-        self.assertLess(abs(under - 17.2), 2.0, "bed %.1f dB under the voice" % under)
+        self.assertLess(abs(under - 19.2), 2.0, "bed %.1f dB under the voice" % under)
+
+    def test_hook_track_from_folders_rises_under_the_main_bed(self):
+        # the house setup: a random hook track under the hook (quieter than the main bed, rising to the hook's end),
+        # crossfading into a random main track; both picked from folders
+        import numpy as np
+        d = scratch(self)
+        src, _ = self.media(d)
+        for sub, hz in (("hook", 440), ("hook", 550), ("lofi", 660)):
+            os.makedirs(os.path.join(d, sub), exist_ok=True)
+            ffmpeg("-f", "lavfi", "-i", "sine=frequency=%d:sample_rate=48000:duration=6" % hz, os.path.join(d, sub, "t%d.mp3" % hz))
+        r = run("finish-master.py", "--in", src, "--out-dir", d, "--name", "t", "--music", os.path.join(d, "lofi"),
+                "--hook-music", os.path.join(d, "hook"), "--seed", "3", "--hook-end", "12")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertRegex(r.stdout, r"music: main bed t660\.mp3; hook t(440|550)\.mp3")
+        self.assertRegex(r.stdout, r"OK   bed hook 2[0-2]\.\d dB under the voice in the master \(target 21\.2")
+        self.assertRegex(r.stdout, r"OK   bed body (1[89]|20)\.\d dB under the voice in the master \(target 19\.2")
+        pcm = lambda p: np.frombuffer(subprocess.run(["ffmpeg", "-v", "error", "-i", p, "-ac", "1", "-ar", "16000", "-f", "s16le", "-"],
+                                                     capture_output=True).stdout, dtype=np.int16).astype(float)
+        m, v = pcm(os.path.join(d, "t-4k.mp4")), pcm(os.path.join(d, "t-nomusic-4k.mp4"))
+        n = min(len(m), len(v)); m, v = m[:n], v[:n]
+        b = m - np.dot(m, v) / np.dot(v, v) * v
+        e = lambda t0, t1: 10 * np.log10((b[int(t0 * 16000):int(t1 * 16000)] ** 2).mean())
+        self.assertGreater(e(8.0, 11.5) - e(1.5, 5.0), 1.2, "the hook track should rise toward the hook's end")
 
     def test_rejects_a_short_chapter(self):
         d = scratch(self)

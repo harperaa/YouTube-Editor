@@ -109,7 +109,7 @@ file or a screen tutorial runs its own route the same way, gates and finish incl
 | Overlays | full density (the long-form doctrine and the creator's note: about one every 5 to 6 s in the first minute, then at least one a minute plus every spoken list, number and key line), chapter tag per section, shipped formats only (no DRAFT formats: those need your yes), never duplicating text the screen already shows |
 | Diagrams | built without the "propose before building" round; their labels are your words, never invented |
 | Sound effects | the Sound rules (pop on a logo, cha-ching on money, typing on a typed prompt), each one checked audible |
-| Music | a ducked lo-fi bed (`videos/_shared/music/` or a new Epidemic Sound pick by mood), tension under the hook, plus a no-music twin |
+| Music | a random hook track from `videos/_shared/music/hook/` under the hook (quieter, rising to its end), crossfading into a random lo-fi track from `videos/_shared/music/lofi/`, both ducked under the voice; plus a no-music twin |
 | B-roll | the stock route (Pexels/Pixabay), about one shot a minute on named people and jobs; AI B-roll never (it costs credits) |
 | Person photos, private screens, anything only you have | skip the beat, log it in REPORT.md |
 | Chapters | one per section from the chapter tags, first at 0:00, each at least 10 s |
@@ -128,7 +128,7 @@ then the safe option: keep the word, drop the overlay, leave the cut out) and lo
   own text repeated) and fixes what it sees. A changed format gets the seek-back check.
 - **Gate C, the master** (before delivery): patch alignment proven by frame-number PSNR; `verify-render.py` PASS on
   both masters (`--min-mbps 5` on a Tella export); loudness -14 LUFS (±0.5) with true peak at or under -1 dB; chapters embedded and listed; every sound
-  effect audible where planned; the music bed at its measured level (finish-master's `OK bed hook / body` lines, 14.2 / 17.2 dB under the voice); a word-audit of the final master against the export (every
+  effect audible where planned; the music bed at its measured level (finish-master's `OK bed hook / body` lines, 21.2 / 19.2 dB under the voice with a hook track); a word-audit of the final master against the export (every
   difference settled by one-piece transcription); the render sheet read.
 
 **Done means all of it:** the cut, layouts and zooms (Tella), overlays and chapter tags, sound effects, music bed and
@@ -180,7 +180,7 @@ dialog nobody sees.
 | `compose.py` | `storyboard.json` → `public/index.html` | `--spec --out [--shared DIR]` |
 | `beat-check.py` | each anchored element enters 0.10 s after to 0.60 s before its word; fails unanchored cards and a stale transcript | `--index --transcript [--suggest] [--allow-stale] [--video]` |
 | `snap-beats.py` | one snapshot per beat and per state inside a beat, tiled into `snaps/sheet.png` | `--project [--at T ...]` |
-| `finish-master.py` | the composite to the two delivery masters: chapters from the chapter tags (titles from chapters.txt), two-pass loudnorm on the audio only (video copied), the ducked music bed set by its measured level under the voice (14.2 / 17.2 dB, corrected until it lands), all measured; exit 1 when off | `--in --out-dir --name [--storyboard] [--chapters] [--title] [--music] [--hook-end 19] [--hook-under 14.2] [--body-under 17.2]` |
+| `finish-master.py` | the composite to the two delivery masters: chapters from the chapter tags (titles from chapters.txt), two-pass loudnorm on the audio only (video copied), the ducked music set by its measured level under the voice (a random hook track 21.2 dB under, rising, then a random lo-fi bed 19.2 dB under; corrected until it lands), all measured; exit 1 when off | `--in --out-dir --name [--storyboard] [--chapters] [--title] [--music FILE/DIR] [--hook-music FILE/DIR] [--seed] [--hook-end 19] [--hook-under 21.2] [--hook-rise 3] [--body-under 19.2]` |
 | `layout-check.py` | `hyperframes check` at every beat where it is fully built (each item + 0.5 s, mid, out - 0.45 s, each tag): text outside its card or the frame, by beat; exit 1 on any | `--project W/public [--storyboard] [--out] [--plan-only] [--from-json]` |
 | `gap-scan.py` | long-form coverage: stretches with no overlay and no camera move; density per 90 s | `--index [--early 15] [--body 20] [--max 30]` |
 | `storyboard-md.py` | the delivery `STORYBOARD.md` from one or more storyboards | `--title --project dir:slug:title --out [--note] [--concern]` |
@@ -916,9 +916,15 @@ speech window, subtract, and read the RMS of the difference in each sound's wind
 against two control windows (a pop shows ~650 against ~30). Never compare against a previous render: two AAC encodes
 differ enough to hide a quiet effect.
 
-**Music:** a track with some tension under the hook (~18 s), then a calm lo-fi bed under the rest, **measured 14.2 dB
-(hook) and 17.2 dB (body) under your voice in the finished master** (the creator's numbers: 15 / 18 dB, raised 10% and
-then 10% again on "I can't hear the music"). Set the bed by that measurement, never by a gain: the sidechain ducking
+**Music: two tracks, picked at random from your folders.** Under the hook, a random track from
+`videos/_shared/music/hook/`, quieter than the main bed (**measured 21.2 dB under your voice** on average) and rising
+3 dB from the open to the hook's end; it crossfades (1.5 s) at the hook's end into a random track from
+`videos/_shared/music/lofi/` under the rest, **measured 19.2 dB under your voice** (the creator's notes: "I can't hear
+the music" took it from 18 to 17.2 dB under, a ducking bug had buried it ~30 dB under; then "it is too loud" on the
+lofi bed took it 2 dB down to 19.2). `finish-master.py --music videos/_shared/music/lofi --hook-music
+videos/_shared/music/hook` picks both (a folder means "one at random"; it prints the picks for REPORT.md; `--seed` repeats
+a pick). Add tracks to those folders and the next video can draw them; without a hook folder one bed plays, 16.2 dB under
+the voice in the hook. Set the bed by that measurement, never by a gain: the sidechain ducking
 took a bed at -18.5 / -21.5 dB to ~30 dB under the voice, inaudible, while every gain looked right. **Test it before
 finalizing, every video:** `finish-master.py` mixes, measures the bed in the master (master minus the no-music master,
 voice gain-matched, over the speaking frames), corrects and remixes until it lands within 1.5 dB, prints `bed hook / body
@@ -1157,6 +1163,17 @@ export_video(resolution "4k", fps "30") → get_export_status → curl -L -o "$W
   clip only.
 - **Never upload a HyperFrames render into Tella** (it re-encodes at ~15 Mb/s and comes back softer, SSIM 0.88). The
   export is 3840x2160, 30 fps, BT.709, ~9 Mb/s; a 720p camera track becomes an upscale, so record the camera higher.
+- **A faster final (the creator asked for 1.1x):** the editor has no clip speed; export the finished copy with
+  `export_video` `speed` "1.1" and run the whole overlay pass on that export (its transcript, its times: export time =
+  playback / 1.1). Open the cut on 0.55 s of room tone so the final keeps 0.5 s. Set the copy's share page with
+  `update_video` `playbackRate` 1.1 too; tell the creator the editor still plays 1x and any re-export needs the speed again.
+- **The overlay patches carry the base picture.** A later change to the Tella export (a zoom, a cursor) means a new
+  export and re-rendering every patch window that overlaps the changed stretch (delete those patch files; the rest are
+  reused); timing stays put when the cuts do not change.
+- **Check the whole composite against its base, not one patch.** A VideoToolbox composite once put 9 wrong frames in its
+  first second (PSNR against the base fell from 51 to 39 dB at 0:00.33 to 0:00.60; the header listed 9 frames fewer than
+  the base). Per-frame PSNR of the master against the base over every stretch outside the patch windows must stay
+  flat (~50 dB); a dip means re-encode the composite.
 
 **Settings** (`update_video`, the house defaults): canvas 1920x1080 with your background image; studio sound, motion
 blur and `shrinkCameraDuringZooms` off; a large cursor (size about 3), no smoothing, no click ripple; hard cuts between
@@ -1172,8 +1189,39 @@ recorded move Tella draws the cursor at that first position (on one lesson it sa
 with no event at all). Take the rest positions from `get_mouse_events` at `intervalMs` 500, map each to the canvas
 (screen box + crop), crop that spot from the export once per still-page stretch (between scroll bursts) and tile the
 crops; a stretch is "covering" when the arrow sits on letters or a label, including at the zoom scale used there.
-Check one frame per piece with `get_clip_frame` after the change. A cursor tucked behind the camera card or on blank
-page stays.
+Check the change in the EXPORT, not with `get_clip_frame` / `get_clip_preview`: neither draws the animated cursor. A
+cursor tucked behind the camera card or on blank page stays.
+
+**A cursor you keep must survive the export (the "Build Your Own AI Business" demo, 2026-11-17).** Full-screen page
+sections added through the API (`add_layout` / `update_layout` with `screen-only` fullscreen cover or letterbox,
+`screen-only` middle, or `custom` with the camera `hidden`) exported WITHOUT the animated cursor, even with
+`animatedCursor: true`; the editor preview showed it, and the same layout made in Tella's editor kept it. What keeps it:
+draw the page full frame as a `custom` layout with the camera still ON but behind the screen
+(`subject` {point (0, -72.6), 1920x1225.3, order 0}, `presentation` {its normal box, `hidden: false`, order 1}): it looks
+identical and the cursor exports. Prove it at every click: export, then frame-diff each `get_mouse_events` click time
+against an export with the cursor off (or look at a contact sheet of the clicks); a click with no cursor is a failure
+unless a zoom has the point out of view. Traps met on the way: `update_layout` with `kind: custom` on a section can
+rewrite the clip's base layout too (re-read `list_layouts` after it); copies whose cursor was switched on after the cuts
+behaved the same as copies cut afterwards, so the cut order is not the cause.
+
+**Replacing one section of a finished Tella export** (a cursor, a fix Tella will only render in another copy): make a
+trimmed `duplicate_video` of the source with `startTime`/`endTime` in raw recording time (the section's first and last
+kept raw moments; its cuts then appear as one leading and one trailing cut), give it the section's layouts and zooms in
+UNCUT time (each boundary mapped play → raw), export it uncut at 1x and 4K, and cut + speed it locally: for each kept
+segment, output frames `round(p/speed*30)` to `round(p_end/speed*30)` (p = kept play time before it), sourced from
+`ffmpeg -ss <raw - start + (t0*speed/30 - p)> -vf setpts=(PTS-STARTPTS)/speed,fps=30 -frames:v n`, then concat. The
+frame count must equal the section's length in the main export (an 18:40 cut at 1.1x: 10006 frames for its demo); splice
+with `overlay` at frame `round(start_play/speed*30)` and prove the frame offset is 0 on a few segments (compare runs of
+20 frames at offsets -3..3). Delete every test copy you make in Tella afterwards (`delete_video` sends it to trash).
+The replacement never matches the edit exactly: zooms and layout springs rebuilt in uncut time animate across footage the
+cut removes, so their framing and timing drift (one demo: three zooms framed differently, every layout change a few
+frames off, a camera-only face stretch 1 to 2 frames late). So **never ship the replacement wholesale. Take only the
+frames where it differs by the cursor alone:** diff the two bases frame by frame (480x270 grey, pixels off by more than
+20); use a replacement frame only on a full-screen page section (camera hidden: no lip sync to break) where under ~1500
+of the 129,600 pixels differ, widen every larger difference by 2 frames and drop runs under 15 frames; everything else is
+the approved edit. Composite once from both bases and both patch sets (each patch window takes the replacement's patch
+only inside those runs, by `overlay=enable`), with the approved base's audio. Outside the runs the master is the approved
+one frame for frame; list the clicks that fall outside a run (inside a zoom or a layout change) by time in REPORT.md.
 
 **The three views** (every screen clip visits all three):
 1. **You left, screen right:** `side-by-side`, position `left`, style `regular`, the base of every screen clip. Never
@@ -1196,6 +1244,8 @@ zoom when a page first appears** (show the whole page), no `generate_auto_zooms`
 neighbouring cards becomes a fixed-origin zoom on the subject. A Tella zoom shrinks your camera into a bubble over the
 page, so for a moment where the screen is the point, zoom in HyperFrames on the whole frame with an origin that pushes
 your card out: a card whose right edge sits at fraction c of the width leaves once `origin_x * (1 - 1/scale) > c`.
+`focusPoint` is the zoom's ORIGIN (the point that stays put), not the centre of the view: for a view centred on c (% of
+the screen) at scale s send origin = (c - 50/s) / (1 - 1/s), clamped 0-100 (centring on 27% at 1.8 cut "Headcount" to "adcount").
 
 **Cut rules for tutorials:**
 - **The screen cut is tighter than the talking-head cut:** after our cut, `remove_silences` mode `fast` on the screen

@@ -7,8 +7,11 @@ The finish that was typed by hand on "Daily Leads", as one command:
      Checked: first at 0:00, at least 3, each at least 10 s (YouTube's rules). Written as NAME-chapters.txt + ffmetadata.
   2. NAME-nomusic-4k.mp4: the audio alone, two-pass loudnorm (-14 LUFS, true peak -1.5) on a 24-bit WAV, the video
      stream-copied, the chapters embedded. (A one-pass limiter before AAC measured +0.1 dBFS true peak afterwards.)
-  3. NAME-4k.mp4 (with --music): the bed looped, louder under the hook than under the body (a 2 s ramp at --hook-end),
-     faded in 1 s and out over the last --fade-out s, ducked under the voice (sidechaincompress), mixed to WAV, two-pass
+  3. NAME-4k.mp4 (with --music): the bed looped, faded in 1 s and out over the last --fade-out s. With --hook-music (the
+     house setup: a random track from videos/_shared/music/hook/ under the hook, a random one from music/lofi/ under the
+     rest; a folder given to --music or --hook-music means "pick one at random", --seed repeats a pick) the hook track
+     plays alone under the hook, quieter than the main bed and rising --hook-rise dB to its end, then crossfades
+     (--xfade s) into the main track; without it one bed plays, louder under the hook (a 2 s ramp at --hook-end). The bed is ducked under the voice (sidechaincompress), mixed to WAV, two-pass
      loudnorm again, video copied, chapters kept. The bed is set by what it MEASURES under the voice, not by a fixed gain:
      the ducking took a bed at -18.5 / -21.5 dB to ~30 dB under the voice, where the creator could not hear it. A first mix
      at --hook-db / --body-db is measured (energy of the ducked bed vs the voice over the frames where the voice speaks),
@@ -19,25 +22,45 @@ The finish that was typed by hand on "Daily Leads", as one command:
 
 Usage: python3 finish-master.py --in W/final/composite-4k.mp4 --out-dir W/final --name daily-leads-v3
          [--storyboard W/final/storyboard.json] [--chapters W/final/chapters.txt] [--title "Video title"]
-         [--music videos/_shared/music/bed.mp3] [--hook-end 19] [--hook-under 14.2] [--body-under 17.2] [--fade-out 4]
+         [--music videos/_shared/music/lofi] [--hook-music videos/_shared/music/hook] [--seed N] [--hook-end 19]
+         [--hook-under 21.2 | 16.2 without --hook-music] [--hook-rise 3] [--body-under 19.2] [--fade-out 4]
          [--lufs -14] [--tp -1.5] [--intro "Intro"]
 """
-import argparse, json, math, os, re, subprocess, sys, tempfile
+import argparse, json, math, os, random, re, subprocess, sys, tempfile
 import numpy as np
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--in", dest="inp", required=True); ap.add_argument("--out-dir", required=True); ap.add_argument("--name", required=True)
 ap.add_argument("--storyboard"); ap.add_argument("--chapters"); ap.add_argument("--title", default="")
 ap.add_argument("--intro", default="Intro", help="first chapter's title when the tags give none for 0:00")
-ap.add_argument("--music"); ap.add_argument("--hook-end", type=float, default=19.0)
+ap.add_argument("--music", help="the main bed: a file, or a folder to pick one from at random")
+ap.add_argument("--hook-music", help="the hook's own track: a file, or a folder to pick one from at random")
+ap.add_argument("--seed", type=int, help="repeat a random pick"); ap.add_argument("--hook-end", type=float, default=19.0)
+ap.add_argument("--hook-rise", type=float, default=3.0, help="dB the hook track rises from the open to the hook's end")
+ap.add_argument("--xfade", type=float, default=1.5, help="s the hook track crossfades into the main bed")
 ap.add_argument("--hook-db", type=float, default=-18.5, help="first-pass bed gain under the hook (corrected by measurement)")
 ap.add_argument("--body-db", type=float, default=-21.5, help="first-pass bed gain under the body (corrected by measurement)")
-ap.add_argument("--hook-under", type=float, default=14.2, help="dB the ducked bed sits under the voice in the hook, measured")
-ap.add_argument("--body-under", type=float, default=17.2, help="dB the ducked bed sits under the voice in the body, measured")
+ap.add_argument("--hook-under", type=float, help="dB the ducked bed sits under the voice in the hook, measured (default 21.2 with "
+                "--hook-music: under the main bed, the creator's note; 16.2 for a single bed)")
+ap.add_argument("--body-under", type=float, default=19.2, help="dB the ducked bed sits under the voice in the body, measured")
 ap.add_argument("--bed-tol", type=float, default=1.5, help="dB the measured bed may miss its target")
 ap.add_argument("--fade-out", type=float, default=4.0)
 ap.add_argument("--lufs", type=float, default=-14.0); ap.add_argument("--tp", type=float, default=-1.5)
 a = ap.parse_args()
+if a.hook_under is None: a.hook_under = 21.2 if a.hook_music else 16.2
+rng = random.Random(a.seed)
+
+
+def pick(p):
+    """a file as is; a folder: one of its audio files at random"""
+    if not p or not os.path.isdir(p): return p
+    fs = sorted(f for f in os.listdir(p) if f.lower().endswith((".mp3", ".wav", ".m4a", ".aac", ".flac")))
+    if not fs: sys.exit("no audio files in %s" % p)
+    return os.path.join(p, rng.choice(fs))
+
+
+a.music, a.hook_music = pick(a.music), pick(a.hook_music)
+if a.music: print("music: main bed %s" % os.path.basename(a.music) + ("; hook %s" % os.path.basename(a.hook_music) if a.hook_music else ""))
 
 
 def sh(cmd, **kw):
@@ -136,12 +159,21 @@ if a.music:
 
     def bed_mix(hdb, bdb):
         hg, bg = g(hdb), g(bdb)
-        vol = "if(lt(t,%.3f),%.5f,if(lt(t,%.3f),%.5f+(%.5f-%.5f)*(t-%.3f)/2,%.5f))" % (he, hg, he + 2, hg, bg, hg, he, bg)
-        fc = ("[0:a]asplit=2[voice][sc];[1:a]aformat=sample_rates=48000:channel_layouts=stereo,volume='%s':eval=frame,afade=t=in:d=1,"
-              "afade=t=out:st=%.3f:d=%.3f[bed];[bed][sc]sidechaincompress=threshold=0.02:ratio=10:attack=15:release=350,asplit=2[duck][bout];"
-              "[voice][duck]amix=inputs=2:duration=first:normalize=0[a]" % (vol, max(0.0, dur - a.fade_out), a.fade_out))
+        fmt = "aformat=sample_rates=48000:channel_layouts=stereo"
+        tail = ("afade=t=out:st=%.3f:d=%.3f[bed];[bed][sc]sidechaincompress=threshold=0.02:ratio=10:attack=15:release=350,asplit=2[duck][bout];"
+                "[voice][duck]amix=inputs=2:duration=first:normalize=0[a]" % (max(0.0, dur - a.fade_out), a.fade_out))
+        ins = ["-stream_loop", "-1", "-i", a.music]
+        if a.hook_music:      # the hook track alone under the hook, rising hook-rise dB to its end, then crossfading into the main bed
+            hv = "%.6f*pow(10,(-%.3f*(1-min(t,%.3f)/%.3f))/20)" % (hg, a.hook_rise, he, he)
+            fc = ("[0:a]asplit=2[voice][sc];[2:a]%s,volume='%s':eval=frame,afade=t=in:d=1,afade=t=out:st=%.3f:d=%.3f,atrim=0:%.3f[hk];"
+                  "[1:a]%s,volume=%.6f,afade=t=in:d=%.3f,adelay=%d:all=1[mn];[hk][mn]amix=inputs=2:duration=longest:normalize=0,%s"
+                  % (fmt, hv, he, a.xfade, he + a.xfade, fmt, bg, a.xfade, int(he * 1000), tail))
+            ins += ["-stream_loop", "-1", "-i", a.hook_music]
+        else:
+            vol = "if(lt(t,%.3f),%.5f,if(lt(t,%.3f),%.5f+(%.5f-%.5f)*(t-%.3f)/2,%.5f))" % (he, hg, he + 2, hg, bg, hg, he, bg)
+            fc = "[0:a]asplit=2[voice][sc];[1:a]%s,volume='%s':eval=frame,afade=t=in:d=1,%s" % (fmt, vol, tail)
         mix, bedw = os.path.join(tmp, "mix.wav"), os.path.join(tmp, "bed.wav")
-        sh(["ffmpeg", "-y", "-v", "error", "-i", nomusic, "-stream_loop", "-1", "-i", a.music, "-filter_complex", fc,
+        sh(["ffmpeg", "-y", "-v", "error", "-i", nomusic] + ins + ["-filter_complex", fc,
             "-map", "[a]", "-t", "%.3f" % dur, "-c:a", "pcm_s24le", "-ar", "48000", mix,
             "-map", "[bout]", "-t", "%.3f" % dur, "-c:a", "pcm_s24le", "-ar", "48000", bedw])
         b = pcm(bedw)
@@ -157,15 +189,27 @@ if a.music:
         gm = float(np.dot(m, v) / np.dot(v, v)); v = gm * v; b = m - v
         return under(v, b, 1.0, he), under(v, b, he + 2, dur - a.fade_out - 1)
 
+    def step(hist, want):
+        """next gain: one-for-one on the first miss, then the secant through the last two (under steady speech the
+        ducking compresses hard: +4.9 dB of gain moved a hook bed only 0.9 dB), each step capped at 12 dB, gain <= +12"""
+        g, u = hist[-1]
+        if len(hist) > 1 and abs(u - hist[-2][1]) > 0.05:
+            slope = (u - hist[-2][1]) / (g - hist[-2][0])          # dB under per dB of gain (negative)
+            d = (want - u) / slope if slope < -0.02 else u - want
+        else:
+            d = u - want
+        return min(12.0, g + max(-12.0, min(12.0, d)))
+
     hdb, bdb = a.hook_db, a.body_db
-    for rnd in range(3):                                   # mix, measure in the master, correct by the miss (the bed's
-        mix, _, _ = bed_mix(hdb, bdb)                      # gain passes the ducking linearly), at most three rounds
+    hh, bh = [], []
+    for rnd in range(6):                                   # mix, measure in the master, correct by the miss
+        mix, _, _ = bed_mix(hdb, bdb)
         mux(nomusic, mix, withmusic)
         uh, ub = in_master()
         miss = [abs(u - w) for u, w in ((uh, a.hook_under), (ub, a.body_under)) if u is not None]
         if not miss or max(miss) <= a.bed_tol / 2: break
-        if uh is not None: hdb += uh - a.hook_under
-        if ub is not None: bdb += ub - a.body_under
+        if uh is not None and abs(uh - a.hook_under) > a.bed_tol / 2: hh.append((hdb, uh)); hdb = step(hh, a.hook_under)
+        if ub is not None and abs(ub - a.body_under) > a.bed_tol / 2: bh.append((bdb, ub)); bdb = step(bh, a.body_under)
     for lab, u, want, gain in (("hook", uh, a.hook_under, hdb), ("body", ub, a.body_under, bdb)):
         if u is None:
             bed_lines.append("bed  %s: no speech to measure" % lab); continue
