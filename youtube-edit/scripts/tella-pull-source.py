@@ -26,6 +26,8 @@ base = split.scheme + "://" + split.netloc + split.path.rsplit("/", 1)[0] + "/"
 query = split.query
 
 def get(u):
+    # playlists may name any URI; urlopen would also read file:// (a local file spliced into the MP4), so web only
+    if urllib.parse.urlsplit(u).scheme not in ("https", "http"): sys.exit("refusing non-http(s) URL in playlist: %s" % u.split("?")[0][:120])
     with urllib.request.urlopen(u, timeout=120) as r: return r.read()
 def signed(rel):
     if rel.startswith("http"): full = rel
