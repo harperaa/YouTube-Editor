@@ -137,7 +137,7 @@ for f in fonts:
 # GSAP: a local copy when one exists (renders work offline): the skill's assets/vendor/gsap.min.js, else the copy bundled
 # with the HyperFrames talking-head-recut skill (installed in the project or the home folder). Otherwise the page loads
 # the CDN build the HyperFrames docs use.
-GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"
+GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.15.1/dist/gsap.min.js"
 for cand in [os.path.join(SKILL, "assets", "vendor", "gsap.min.js")] + [
         os.path.join(base, hidden, "skills", "talking-head-recut", "assets", "vendor", "gsap.min.js")
         for base in (ROOT, os.getcwd(), os.path.expanduser("~")) for hidden in (".agents", ".claude")]:
