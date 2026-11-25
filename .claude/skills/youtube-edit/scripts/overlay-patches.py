@@ -51,6 +51,10 @@ for line in open(a.windows):
     line = line.split("#")[0].split()
     if len(line) == 3:
         wins.append((line[0], round(float(line[1]) * a.fps) / a.fps, round(float(line[2]) * a.fps) / a.fps))
+_names = [w[0] for w in wins]
+_dup = sorted(set(n for n in _names if _names.count(n) > 1))
+if _dup:   # one PATCHES/name.mp4 would be rendered once and pasted into every window of that name
+    sys.exit("duplicate window name(s): %s (give the beats unique ids)" % ", ".join(_dup))
 os.makedirs(a.patches, exist_ok=True)
 
 if a.render:

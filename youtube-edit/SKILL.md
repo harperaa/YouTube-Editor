@@ -106,11 +106,11 @@ file or a screen tutorial runs its own route the same way, gates and finish incl
 | Route | the table above; a Tella video or Tella export takes the Tella route; when unsure, the one that edits a copy |
 | The cut | last take wins; retakes, false starts, stutters, dead air and a hook said twice (keep the stronger one) go; every other sentence stays; drops listed in `DROPPED.md` |
 | End screen | the "watch this next" line lands in the last 5 to 20 s (cut the like/subscribe lines after it) |
-| Overlays | full density (the long-form doctrine and the creator's note: about one every 5 to 6 s in the first minute, then at least one a minute plus every spoken list, number and key line), chapter tag per section, shipped formats only (no DRAFT formats: those need your yes), never duplicating text the screen already shows |
-| Diagrams | built without the "propose before building" round; their labels are your words, never invented |
+| Overlays | MORE than full density (the creator, 2026-11-24: "lean into the animations, I want more than normal"): something new every 4 to 5 s in the hook, then about 5 a minute (never a stretch over 20 s without one) plus every spoken list, number and key line; a progress tag on every numbered part; shipped formats only (no DRAFT formats: those need your yes), never duplicating text the screen already shows |
+| Diagrams | a **concept illustration** (see "Concept illustrations") for every point made, at least one a minute of body, built without the "propose before building" round; their labels are your words, never invented |
 | Sound effects | the Sound rules (pop on a logo, cha-ching on money, typing on a typed prompt), each one checked audible |
 | Music | a random hook track from `videos/_shared/music/hook/` under the hook (quieter, rising to its end), crossfading into a random lo-fi track from `videos/_shared/music/lofi/`, both ducked under the voice; plus a no-music twin |
-| B-roll | the stock route (Pexels/Pixabay), about one shot a minute on named people and jobs; AI B-roll never (it costs credits) |
+| B-roll | the stock route (Pexels/Pixabay): at least one shot in EVERY minute of the video (the creator, 2026-11-25: "we should also have one b-roll per minute"), 2 to 3 s each, on a named person, job, place or concrete thing said in that minute (a camera, an upload screen, a credit card, a calendar); never over a Tella zoom or a concept illustration; AI B-roll never (it costs credits) |
 | Person photos, private screens, anything only you have | skip the beat, log it in REPORT.md |
 | Chapters | one per section from the chapter tags, first at 0:00, each at least 10 s |
 
@@ -129,7 +129,8 @@ then the safe option: keep the word, drop the overlay, leave the cut out) and lo
 - **Gate C, the master** (before delivery): patch alignment proven by frame-number PSNR; `verify-render.py` PASS on
   both masters (`--min-mbps 5` on a Tella export); loudness -14 LUFS (±0.5) with true peak at or under -1 dB; chapters embedded and listed; every sound
   effect audible where planned; the music bed at its measured level (finish-master's `OK bed hook / body` lines, 21.2 / 19.2 dB under the voice with a hook track); a word-audit of the final master against the export (every
-  difference settled by one-piece transcription); the render sheet read.
+  difference settled by one-piece transcription); `cutaway-check.py` 0 FAIL (every clip and site cutaway covers the frame);
+  the render sheet read, plus one frame from the middle of every cutaway window seen by eye.
 
 **Done means all of it:** the cut, layouts and zooms (Tella), overlays and chapter tags, sound effects, music bed and
 no-music twin, B-roll, chapters, loudness, every gate green, delivered to `~/Movies/YouTube Renders/<project>/` with
@@ -186,6 +187,7 @@ dialog nobody sees.
 | `storyboard-md.py` | the delivery `STORYBOARD.md` from one or more storyboards | `--title --project dir:slug:title --out [--note] [--concern]` |
 | `broll-conform.py` | a stock clip, generated clip or still → a cutaway (30 fps, no audio, a keyframe every 15 frames, BT.709) + a 3-frame sheet + the beat to paste | `--in --out [--start] [--dur] [--4k] [--grade] [--push 1.08] [--vf FILTERS]` |
 | `window-patch.py` | a render-ready copy covering only [T0, T1], for a fix inside a long render | `--public --t0 --t1 --out` |
+| `cutaway-check.py` | every `clip` / `site` beat really covers the frame in the render: at three moments the share of pixels still matching the base stays under 25% (a working cutaway sits at 1 to 10%; the squashed-strip bug was 81%) | `--storyboard --video --base [--max-match 0.25] [--types clip,site]` |
 | `overlay-patches.py` | dress a finished long video by rendering only its overlay windows, then composite them + the storyboard's `sfx_mix` sounds onto the base at 45 Mb/s | `--public --base --windows --patches [--storyboard] --out [--make-windows] --render --composite` |
 | `stock-search.py` | one B-roll slot searched on Pexels and/or Pixabay (keys from env or `.env.local`): shortlist JSON/MD + thumbnail sheet; `--pick provider:id` downloads into `raw/` and records `clips.json` | `--slot --q --out-dir [--provider auto] [--pick]` |
 | `verify-render.py` | checks the rendered file: black runs, size, BT.709 tags, bitrate, duration, A/V, clipped words | `--render [--index] [--res] [--words --kept] [--out]`; exit 1 on a FAIL |
@@ -312,6 +314,13 @@ restarts and stray fillers ("Now.", "Now so."); it is faster than patching the p
 - **A doubled word that overlaps itself in time is a window artifact, not a stutter.** A window cut inside a word lets
   both windows hear it ("And@197.58-197.82 And@197.67-197.91"); transcribe-windows.py now drops the second copy, and
   `--dedupe FILE` repairs an older transcript. Four such "stutters" on one file were real single words.
+- **Transcriber dropouts:** windowed Parakeet can still return nothing for a whole 25 s window (twice on one 27-minute
+  video, once on the export). After every transcription list gaps between words over 2.5 s that hold speech (auto-editor
+  chunks or RMS), re-transcribe each such stretch alone and merge it, or the cut drops real sentences and anchors go
+  MISSING.
+- **Doubled words on the export:** scan the EXPORT's transcript for the same word twice in a row before the overlay
+  pass ("because the the", "sell the the dessert", "at at"); the raw transcript merged them, so the cut kept them. Fix
+  them with join-check candidates and one more Tella re-cut and export (minutes), before any overlay is anchored.
 - **Raw files over ~3 minutes:** Parakeet can drop whole sentences: `transcribe-windows.py --audio A --out T --speech
   S` (25 s windows cut at auto-editor silences, else at the quietest frame; never at fixed points, where a word lands
   in both windows and reads as a stutter that is not there).
@@ -498,6 +507,7 @@ against, and to hand-build the rest.
 | 40 | Numbered deck | the full-frame opener of each part of a numbered video | `deck` |
 | 41 | Pills around the head | two to six short labels while you stay on camera | `pills` |
 | 42 | Chat (bubbles, window, phone) | a conversation | `chat` |
+| 43 | Concept illustration | a point SHOWN working: mechanism, metaphor, trade-off (see "Concept illustrations") | `concept` |
 | - | Check marker* | done and to-do lists: a check draws on each item | `"marker": "check"` on `list`, `bullets`, `popout` |
 | - | Thumbnail grid | your own thumbnails; the cursor clicks one | `grid` |
 | - | Coded scenes | money, catalog, room, plate, profile: B-roll with no stock | `scene` |
@@ -775,6 +785,60 @@ step; duration = last beat + ~8 s; no outcome said, no payoff banner. **Propose 
 format, the step labels, in one short message) in review mode only: a diagram is 30 to 40 s of screen time. In the
 default autonomous run, build it and list it in REPORT.md.
 
+## Concept illustrations (the default explainer)
+
+The creator's direction (2026-11-25): "the instructions to hyperframes to create illustrations [should] be more elaborate
+and show concepts being discussed", pointing at Alex (a1crew), "Containers vs Sandboxes: Where Should AI Agents Run?"
+(teardown in `videos/_teardown/ref-a1crew/`: about half of the sampled frames are a diagram, a new diagram every 15 to
+20 s, a new element entering about every 5 s). A chip that names a point is not an illustration. Every point gets a
+picture of the idea working.
+
+- **Draw the mechanism, not the label.** Things the viewer can picture: boxes, a machine, a person at a desk, a
+  screen, a folder tree, a pipe, a cloud, money, a clock, a door. Show what flows to what with wires and arrows, what
+  sits inside what, and what breaks. Examples: "the container shares the host kernel" is a box sitting on a kernel bar
+  with a wire down to the host's folders; "a proxy blocks outbound traffic" is the agent, a gate and a red ✗ on
+  evil.example; "the VSL is the hub" is the VSL in the middle, outcome videos on spokes, and a light running back along
+  each spoke from its end card.
+- **One protagonist per video.** Pick a hero icon that stands for the viewer or the subject (the creator, the agent,
+  "your video") and put it in every illustration, doing the thing. It carries continuity from one diagram to the next.
+- **Say a metaphor, draw it.** When the words carry an image, that image is the illustration: a ticking bomb, a cage,
+  a microwave turning cold to hot, popcorn, desserts and vegetables, a diamond with five facets, a scale for a
+  trade-off, a fork in the road for a choice, a key and lock for access, a shield for safety, a conveyor for a process.
+- **Build it on the words, 3 to 7 steps.** Each element arrives on its own word: a wire draws, a light runs along it,
+  a check ticks, a toggle flips ON to OFF, a meter fills, a counter counts, a ✗ or ✓ stamps, a terminal types the
+  command, a label stamps in. Hold the finished picture 1.5 to 2 s, then out. Never show the finished diagram first.
+- **A different composition each time.** A versus B side by side (with ≠ or VS); a stack of layers; a flow left to right
+  with a moving light; a checklist that ticks; a terminal or log that types; a meter or progress bar; a balance scale; a
+  timeline; before/after; a quote card with its attribution; one big kinetic word for the punchline ("A WEAPON").
+- **The look (house colours, schematic line art).** A dark rounded panel (`rgba(14,16,24,.92)`, a faint 4 px stripe
+  texture, a soft cyan-to-magenta gradient rim), thin 2 to 3 px strokes, labels in DM Sans 700 caps 26 to 34 px
+  (monospace only for code, paths and commands). Cyan = the protagonist and the safe path, amber = money, value and
+  time saved, magenta = the danger or the mistake. The panel floats over the talking head with the face kept in a
+  corner, or takes the full frame for 6 to 12 s; never over a Tella zoom, never on a lesson-page drawing that already
+  shows the same thing.
+- **The `concept` format (43) is the default engine** (`formats/concept.py`, wired into compose.py): a dark panel and one
+  1920x1080 SVG of line art. Element kinds: `box`, `line`, `icon` (the composer's line icons), `wire` (draws, `run` sends a
+  light along it), `text` (`align` start|middle|end), `meter` (climbs and recolours step by step, labelled ticks),
+  `glow` (a fill that warms), `stamp`, `check`, `cross`, `count`, `term` (types), `scale` (a beam that tilts, pans
+  that ride it). Any element takes `at` (its word), `anchor` (the spoken phrase, for the record), `moves` [[dx, dy, t,
+  dur]] and `dim` (t). A builder places every `at` from the transcript; the host's own anchor is the words spoken as it
+  cuts in (else beat-check reads it EARLY). Snapshot every scene at `out - 0.4` with one call
+  (`npx hyperframes snapshot public --no-end --at t1,t2,...`) and read each finished picture. Traps met building it:
+  CSS `transform-box`/`transform-origin` on an SVG element that GSAP scales doubles the origin (a meter fill grew below
+  its tube): give GSAP `transformOrigin` in the tween and no CSS transform at all; never name an element's text
+  alignment `anchor` (it collided with the spoken anchor and pushed every anchored word off centre).
+- **Also available:** `world` (39) is the engine for systems: nodes (card, pill, orb, hex, stat, text, img) arriving on
+  their words, `links` that draw and `run` a light, `rings`, `window`, `dock`, and a camera that travels between
+  points on one canvas. Metaphor scenes (a scale, a bomb, a microwave) are hand-built in `raw_html` + `raw_js` (GSAP,
+  inline SVG strokes drawn with `stroke-dashoffset`), one container per scene, every element anchored to a word. A new
+  hand-built scene gets the seek-back check (Traps) and a snapshot of its finished state before the render.
+- **Plan them with the transcript.** Before building, list each section's points with one line saying what the
+  picture shows ("the agent box on the host kernel; a red wire to /etc on 'shares the kernel'"). Labels are the
+  creator's own words, never an invented claim or number. Put the list in REPORT.md.
+- **Gate B counts them.** At least one concept illustration per section and one per minute of body; each read on the
+  snapshot sheet at its finished state (every label legible at its zoom, nothing over the face, the protagonist
+  present).
+
 ## Read the footage, not just the transcript
 
 1. Find the shot changes: `ffmpeg -v error -i in.mp4 -vf "select='gt(scene,0.12)',metadata=print:file=-" -f null -`.
@@ -792,7 +856,9 @@ default autonomous run, build it and list it in REPORT.md.
 6. **Contact-sheet the whole recording before planning any overlay** (`fps=1/30,scale=480:270,tile=5x4`). A "talking
    head" file once turned out to be a lesson page scrolling beside a camera card, with a drawing for every point (beach
    story, premium-offer quadrant, four parts, the 300K handshake): nine of fifteen approved diagrams would have repeated
-   the page. On such a recording do not draw the page's diagrams again, but keep the overlay density: the creator's note
+   the page. On such a recording do not draw the page's diagrams again; illustrate what the page does NOT show (the
+   mechanism, the consequence, the before/after, the metaphor you say aloud; see "Concept illustrations") and keep the
+   overlay density: the creator's note
    on the first cut (13 overlays in 17 minutes) was "I like the animations, there are just way too few of them". The
    hook gets one every 5 to 6 s; the body at least one a minute plus every spoken list and key line (pills, chips,
    equations, a check list, counts), a chapter tag per section, logos, a site cutaway, B-roll. Over a white page use
@@ -808,7 +874,8 @@ default autonomous run, build it and list it in REPORT.md.
   never below luma 90); retire a finished prop to 0, not 0.3. About 20 on-screen words per section, no sentences;
   everything reads in under 2 seconds.
 - **Pacing:** no stretch without an overlay or a camera move over 15 s in the first 90 s, 20 s after, 30 s ever
-  (`gap-scan.py`); about 7 overlays + 7 camera moves per 90 s. One card across a topic span (an item building midway)
+  (`gap-scan.py`); about 7 to 9 overlays per 90 s plus a concept illustration about every minute (the creator wants more
+  than normal). One card across a topic span (an item building midway)
   beats five flashes. Enter 0.15 to 0.25 s ahead of the anchor word; never divide a section evenly.
 - **One gesture, not two moves.** Two moves in a row on one subject read as a glitch: merge them into one move with one
   symmetric ease (`power2.inOut`). A front-loaded ease (`power3.out`) on visible footage rushes, then crawls.
@@ -962,6 +1029,13 @@ together; the exit reverses it. Copy sitting directly in the glass element needs
 fades are fine without backdrop-filter (lower lines). Glass that has not arrived stays hidden, or it blurs the footage.
 
 ## Traps that waste a render
+
+**Every beat and tag id is unique.** The id is the element's DOM id, its GSAP selector and its overlay-patches window
+name. A `microwave` line and a `microwave` clip in one storyboard put the cutaway inside the line's box (a squashed
+strip at the bottom of the frame, no text) and one patch file was pasted into both windows, so the broken strip showed,
+vanished and showed again. Name beats by type and subject (`microwave-line`, `microwave-clip`); compose.py and
+overlay-patches.py now refuse duplicates, and `cutaway-check.py` catches any cutaway that does not cover the frame.
+Snapshots do not prove a cutaway: look at a frame from the middle of every clip window in the composite.
 
 **Files and shell.** `public/` holds the multi-GB input video: back up `index.html` alone, never `cp -r public` (one
 accidental copy was 3.8 GB in /tmp). ffmpeg picks the muxer from the extension: temporary outputs end in `.tmp.mp4`,
@@ -1202,7 +1276,12 @@ identical and the cursor exports. Prove it at every click: export, then frame-di
 against an export with the cursor off (or look at a contact sheet of the clicks); a click with no cursor is a failure
 unless a zoom has the point out of view. Traps met on the way: `update_layout` with `kind: custom` on a section can
 rewrite the clip's base layout too (re-read `list_layouts` after it); copies whose cursor was switched on after the cuts
-behaved the same as copies cut afterwards, so the cut order is not the cause.
+behaved the same as copies cut afterwards, so the cut order is not the cause. Adding the FIRST custom section with
+`add_layout` also rewrote the clip's base and every section following it (the whole video went full page): put the base
+back with `update_layout(base, <the recording's own geometry>)`; the sections the split created keep that geometry, and
+each later custom `add_layout` then changes only its own range (list_layouts keeps reporting `base` as the last custom
+geometry and every section as `followsBase: true`; trust `get_clip_frame` at a base, a page and a face moment, not the
+flags).
 
 **Replacing one section of a finished Tella export** (a cursor, a fix Tella will only render in another copy): make a
 trimmed `duplicate_video` of the source with `startTime`/`endTime` in raw recording time (the section's first and last

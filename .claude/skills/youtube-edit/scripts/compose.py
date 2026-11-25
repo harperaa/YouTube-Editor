@@ -100,7 +100,7 @@ Icons (pipeline, world, deck, pills): doc browser bolt chat money check user cod
 Camera ops: set t scale | creep t0 t1 scale (power1.inOut) | punch t scale (0.32 s power2.out) | release t dur (to 1.0) | reveal t (1.10 to 1.00 as a card enters).
 Positions: tl = left:70 top:96 (desk framing, clears the mic), tr = right:70 top:96.
 """
-import argparse, json, os, re, shutil, glob, math, struct
+import argparse, json, os, re, shutil, glob, math, struct, sys
 from html import escape as _esc
 
 hesc = lambda s: _esc(s, quote=False)
@@ -111,6 +111,12 @@ ap.add_argument("--out", required=True)
 ap.add_argument("--shared", default="")
 args = ap.parse_args()
 S = json.load(open(args.spec))
+# Every beat id is a DOM id, a GSAP selector and an overlay-patches window name: two beats sharing one (a "microwave"
+# line and a "microwave" clip) put the cutaway into the line's box as a squashed strip, in both windows.
+_ids = [b.get("id") for b in S.get("beats", [])] + [t["id"] for t in S.get("tags", []) if t.get("id")]
+_dup = sorted(set(i for i in _ids if i and _ids.count(i) > 1))
+if _dup:
+    raise SystemExit("duplicate beat id(s): %s (every beat and tag needs its own id)" % ", ".join(_dup))
 OUT = args.out
 os.makedirs(OUT, exist_ok=True)
 
@@ -845,6 +851,10 @@ for ti, tag in enumerate(S.get("tags") or ([S["tag"]] if S.get("tag") else [])):
     js("tl.set('#%s-inner', { opacity: 0 }, %.3f);" % (tid, tag["out"] - 0.12))   # hard kill exactly where the fade ends
 
 # ---- beats ------------------------------------------------------------------------------------------
+if any(b.get("type") == "concept" for b in S.get("beats", [])):
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "formats"))
+    from concept import concept_css
+    CSS += concept_css()
 for b in S.get("beats", []):
     t, bid, t_in, t_out = b["type"], b["id"], float(b["in"]), float(b["out"])
     anchor = b.get("anchor", "")
@@ -2097,6 +2107,14 @@ for b in S.get("beats", []):
                         check_in("#%s-i%d" % (bid, i), float(it[1]))
                 js("tl.to('#%s-inner', { opacity: 0, duration: 0.28, ease: 'power2.in' }, %.3f);" % (bid, t_out - 0.40))
                 js("glassOut('#%s-glass', %.3f, 0.33);" % (bid, t_out - 0.35))
+        transition(b, t_in, t_out)
+    elif t == "concept":
+        # concept illustration (SKILL.md "Concept illustrations"): schematic line art on a dark panel, every element on its word
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "formats"))
+        from concept import concept_beat
+        inner, lines = concept_beat(b, bid, t_in, t_out, ICONS)
+        html_parts.append(host(bid, t_in, t_out, track, inner, anchor))
+        for l in lines: js(l)
         transition(b, t_in, t_out)
     else:
         raise SystemExit("unknown beat type %r" % t)

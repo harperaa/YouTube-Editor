@@ -32,6 +32,8 @@ Two rules I learned the hard way: highlighted words are never dark blue (it disa
 | Default for words | One line at the bottom, key words in the highlight colour | |
 | Lists | Never a list panel. Each item becomes its own thing: pills next to my head, a diagram, one animation per number | |
 | My face | Not the default background. 40% or more of a talking section is full-screen animation | |
+| A concept I explain | A drawn illustration of the idea working (schematic line art on a dark panel, one hero icon, built on my words), not a word card; about one a minute | |
+| How many animations | More than normal: something new every 4 to 5 s in the hook, about 5 a minute after | |
 | A person or job I mention | 3 seconds of B-roll of that person doing it | |
 | An app I name | A clean, designed window of it, not a screenshot | |
 | A website or post I name | The real page, in a browser window, scrolling | |
