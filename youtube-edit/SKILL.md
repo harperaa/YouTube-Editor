@@ -165,7 +165,7 @@ dialog nobody sees.
 | `paper-cut.py` | what to remove from a raw take: restarts, "cut that", retakes (keeps the last), false starts, long pauses | `--transcript --duration --out-dir --speech`; writes `cut-list.json` + `PAPER-CUT.md` |
 | `hand-cut.py` | rebuilds `cut-list.json` from the lines you keep | `--keep A-B` (starts of the first and last kept word; `A-B!` keeps it whole) `--transcript --speech --duration --out-dir` |
 | `tighten-cut.py` | trims lead-ins, tails and inner pauses by the sound | `--audio --cut-list --out [--lead 0.07] [--tail 0.11] [--maxgap 0.30]` |
-| `sliver.py` | what edge-audit lets through: breath-only segments, heads carrying a dropped word's decay, tails leaking the next onset, edges under 40 ms | `--cut-list --audio [--fix]` |
+| `sliver.py` | what edge-audit lets through: breath-only segments, heads carrying a dropped word's decay, tails leaking the next onset, edges under 40 ms; widening stops at the neighbour, inverted segments are dropped, and it refuses (exit 1) to write a cut with no speech left: a quiet recording wants a lower `--threshold` (give edge-audit the same value) | `--cut-list --audio [--fix] [--threshold 300]` |
 | `edge-audit.py` | every cut edge checked by the audio: starts or ends mid-sound, restart fragments | `--audio --cut-list --transcript [--keeps FILE] [--fix] [--threshold 300]` |
 | `apply-cut.py` | one frame-accurate re-encode into `public/input-video.mp4` + `cut-map.json` (every jump cut) | `--input --cut-list --out [--fps 30] [--crf 16]` |
 | `dead-air.py` | every pause in the flat cut over 0.40 s after a sentence end (0.45 s elsewhere), by the audio; `--opens-video` keeps and checks the 0.5 s lead-in | `W [--plan] [--keep T] [--max 0.45] [--max-sentence 0.40] [--target 0.30] [--opens-video]` |
@@ -212,7 +212,7 @@ python3 "$SK/scripts/paper-cut.py" --transcript "$W/transcript-raw.json" --durat
 python3 "$SK/scripts/dropped-runs.py" --transcript "$W/transcript-raw.json" --cut-list "$W/cut-list.json" --out "$W/DROPPED.md"
 #   read PAPER-CUT.md AND DROPPED.md; fix misreads with hand-cut.py (it rewrites cut-list.json)
 python3 "$SK/scripts/tighten-cut.py" --audio "$W/audio-raw.wav" --cut-list "$W/cut-list.json" --out "$W/cut-list.json"
-python3 "$SK/scripts/sliver.py" --cut-list "$W/cut-list.json" --audio "$W/audio-raw.wav" --fix
+python3 "$SK/scripts/sliver.py" --cut-list "$W/cut-list.json" --audio "$W/audio-raw.wav" --fix   # exit 1 = quiet clip: lower --threshold
 python3 "$SK/scripts/edge-audit.py" --audio "$W/audio-raw.wav" --cut-list "$W/cut-list.json" --transcript "$W/transcript-raw.json" --fix
 python3 "$SK/scripts/edge-audit.py" --audio "$W/audio-raw.wav" --cut-list "$W/cut-list.json" --transcript "$W/transcript-raw.json"  # 0 issues
 python3 "$SK/scripts/tail-audit.py" --audio "$W/audio-raw.wav" --cut-list "$W/cut-list.json" --transcript "$W/transcript-raw.json" --fix --report "$W/TAILS.md"
