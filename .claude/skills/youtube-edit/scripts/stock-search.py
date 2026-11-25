@@ -38,10 +38,22 @@ def load_keys():
     return keys
 
 
+CURL = ["curl", "-sf", "--proto", "=https", "--proto-redir", "=https"]   # https only, redirects included
+
+
+def https(u):
+    """URLs come from the provider's JSON (or a saved shortlist): only plain https ones reach curl."""
+    return u if isinstance(u, str) and u.startswith("https://") else None
+
+
+def _q(s):
+    return '"%s"' % s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def curl_json(url, headers=()):
-    cmd = ["curl", "-sf", url]
-    for h in headers: cmd += ["-H", h]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    # URL and headers go to curl as a config on stdin, so the API key never shows in `ps` (argv is world-readable)
+    conf = "url = %s\n" % _q(url) + "".join("header = %s\n" % _q(h) for h in headers)
+    r = subprocess.run(CURL + ["-K", "-"], input=conf, capture_output=True, text=True)
     if r.returncode != 0: sys.exit("request failed (%d): %s" % (r.returncode, url.split("key=")[0]))
     return json.loads(r.stdout)
 
@@ -53,8 +65,8 @@ def norm_pixabay(d):
         out.append({"provider": "pixabay", "id": h["id"], "page": h.get("pageURL"), "author": h.get("user"),
                     "licence": "Pixabay Content License", "duration": h.get("duration"), "tags": h.get("tags", ""),
                     "width": big["width"], "height": big["height"], "is4k": bool(v.get("large", {}).get("url")),
-                    "url": big["url"], "thumb": v.get("small", big).get("thumbnail") or big.get("thumbnail")})
-    return out
+                    "url": https(big["url"]), "thumb": https(v.get("small", big).get("thumbnail") or big.get("thumbnail"))})
+    return [h for h in out if h["url"]]
 
 
 def norm_pexels(d):
@@ -66,8 +78,8 @@ def norm_pexels(d):
         out.append({"provider": "pexels", "id": h["id"], "page": h.get("url"), "author": h.get("user", {}).get("name"),
                     "licence": "Pexels License", "duration": h.get("duration"), "tags": "",
                     "width": big["width"], "height": big["height"], "is4k": big["width"] >= 3840,
-                    "url": big["link"], "thumb": h.get("image")})
-    return out
+                    "url": https(big["link"]), "thumb": https(h.get("image"))})
+    return [h for h in out if h["url"]]
 
 
 ap = argparse.ArgumentParser()
@@ -84,7 +96,8 @@ if a.pick:
     if not hit: sys.exit("%s is not in %s" % (a.pick, short))
     os.makedirs(os.path.join(a.out_dir, "raw"), exist_ok=True)
     dst = os.path.join(a.out_dir, "raw", "%s-%s.mp4" % (a.slot, pid))
-    subprocess.run(["curl", "-sfL", "-o", dst, hit["url"]], check=True)
+    if not https(hit["url"]): sys.exit("%s: not an https URL in %s, refusing to fetch" % (a.pick, short))
+    subprocess.run(CURL + ["-L", "-o", dst, hit["url"]], check=True)
     rec_p = os.path.join(a.out_dir, "clips.json")
     rec = json.load(open(rec_p)) if os.path.exists(rec_p) else []
     rec = [r for r in rec if r["slot"] != a.slot] + [{"slot": a.slot, "file": dst, **{k: hit[k] for k in
@@ -120,9 +133,9 @@ for i, h in enumerate(hits):
 open(short.replace(".json", ".md"), "w").write("\n".join(md) + "\n")
 thumbs = []
 for i, h in enumerate(hits[:12]):
-    if not h.get("thumb"): continue
+    if not https(h.get("thumb")): continue
     p = os.path.join(a.out_dir, ".thumbs", "%s-%02d.jpg" % (a.slot, i)); os.makedirs(os.path.dirname(p), exist_ok=True)
-    if subprocess.run(["curl", "-sfL", "-o", p, h["thumb"]]).returncode == 0: thumbs.append(p)
+    if subprocess.run(CURL + ["-L", "-o", p, h["thumb"]]).returncode == 0: thumbs.append(p)
 if thumbs:
     cmd = ["ffmpeg", "-y", "-v", "error"]
     for p in thumbs: cmd += ["-i", p]

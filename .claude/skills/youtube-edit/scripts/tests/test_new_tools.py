@@ -59,6 +59,62 @@ class StockSearch(unittest.TestCase):
         self.assertEqual(s[0]["licence"], "Pixabay Content License")
         self.assertIn("`pixabay:2`", read(os.path.join(d, "shortlist-ceo.md")))
 
+    def test_non_https_urls_never_reach_curl(self):
+        d = scratch(self)
+        resp = write(os.path.join(d, "resp.json"), {"videos": [
+            {"id": 1, "url": "https://pexels.com/v/1", "user": {"name": "a"}, "duration": 5, "image": "file:///etc/hosts",
+             "video_files": [{"width": 3840, "height": 2160, "link": "file:///etc/hosts"}]},
+            {"id": 2, "url": "https://pexels.com/v/2", "user": {"name": "b"}, "duration": 5, "image": "-o/tmp/x",
+             "video_files": [{"width": 1920, "height": 1080, "link": "https://x/2.mp4"}]}]})
+        r = run("stock-search.py", "--slot", "s", "--out-dir", d, "--provider", "pexels", "--from-json", resp)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = load(os.path.join(d, "shortlist-s.json"))
+        self.assertEqual([(h["id"], h["url"], h["thumb"]) for h in s], [(2, "https://x/2.mp4", None)])
+        # a hand-edited shortlist is checked again at pick time
+        write(os.path.join(d, "shortlist-s.json"), [dict(s[0], id=9, url="file:///etc/hosts")])
+        r = run("stock-search.py", "--slot", "s", "--out-dir", d, "--pick", "pexels:9")
+        self.assertNotEqual(r.returncode, 0); self.assertIn("not an https URL", r.stdout + r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(d, "raw", "s-9.mp4")))
+
+    def test_api_key_not_on_curl_command_line(self):
+        import subprocess, sys
+        from .helpers import SCRIPTS
+        d = scratch(self)
+        fake = write(os.path.join(d, "bin", "curl"), '#!/bin/sh\necho "$@" > "%s/argv"\ncat > "%s/stdin"\necho \'{"hits": []}\'\n' % (d, d))
+        os.chmod(fake, 0o755)
+        env = dict(os.environ, PATH=os.path.join(d, "bin") + os.pathsep + os.environ["PATH"], PIXABAY_API_KEY="SEKRETKEY123")
+        env.pop("PEXELS_API_KEY", None)
+        r = subprocess.run([sys.executable, os.path.join(SCRIPTS, "stock-search.py"), "--slot", "k", "--q", "office", "--out-dir", d,
+                            "--provider", "pixabay"], capture_output=True, text=True, env=env, cwd=d)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("SEKRETKEY123", read(os.path.join(d, "argv")))
+        self.assertIn("--proto =https", read(os.path.join(d, "argv")))
+        self.assertIn("key=SEKRETKEY123", read(os.path.join(d, "stdin")))
+
+
+class TellaPullSource(unittest.TestCase):
+    def test_refuses_file_urls_in_a_playlist(self):
+        import http.server, threading, functools
+        d = scratch(self)
+        secret = write(os.path.join(d, "secret.txt"), "TOPSECRET")
+        write(os.path.join(d, "www", "master.m3u8"), "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nmedia.m3u8\n")
+        write(os.path.join(d, "www", "media.m3u8"), "#EXTM3U\n#EXTINF:1,\nfile://%s#\n#EXT-X-ENDLIST\n" % secret)
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, *a): pass
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=os.path.join(d, "www")))
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close); self.addCleanup(srv.shutdown)
+        out = os.path.join(d, "out.mp4")
+        r = run("tella-pull-source.py", "--url", "http://127.0.0.1:%d/master.m3u8?sig=abc" % srv.server_address[1], "--out", out)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("refusing non-http(s) URL", r.stderr)
+        self.assertFalse(os.path.exists(out))
+
+    def test_refuses_a_local_master_url(self):
+        d = scratch(self)
+        r = run("tella-pull-source.py", "--url", "file://" + write(os.path.join(d, "m.m3u8"), "#EXTM3U\n"), "--out", os.path.join(d, "o.mp4"))
+        self.assertNotEqual(r.returncode, 0); self.assertIn("refusing", r.stderr)
+
 
 class TranscribeWindows(unittest.TestCase):
     def test_no_silence_cuts_on_the_quietest_frame(self):
