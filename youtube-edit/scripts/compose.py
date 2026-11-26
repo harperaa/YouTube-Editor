@@ -855,6 +855,11 @@ if any(b.get("type") == "concept" for b in S.get("beats", [])):
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "formats"))
     from concept import concept_css
     CSS += concept_css()
+STAGE_CUES = []     # every on-screen event's sound in stage scenes: <audio> tags here, and public/sfx-cues.json for overlay-patches
+if any(b.get("type") == "stage" for b in S.get("beats", [])):
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "formats"))
+    from stage import stage_css
+    CSS += stage_css()
 for b in S.get("beats", []):
     t, bid, t_in, t_out = b["type"], b["id"], float(b["in"]), float(b["out"])
     anchor = b.get("anchor", "")
@@ -2116,9 +2121,41 @@ for b in S.get("beats", []):
         html_parts.append(host(bid, t_in, t_out, track, inner, anchor))
         for l in lines: js(l)
         transition(b, t_in, t_out)
+    elif t == "stage":
+        # stage scene (SKILL.md "Stage scenes"): full-frame dark stage, glass UI and rebuilt software built on the words,
+        # one sound per on-screen event
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "formats"))
+        from stage import stage_beat
+        inner, lines, cues = stage_beat(b, bid, t_in, t_out, ICONS, attr_anchor)
+        html_parts.append(host(bid, t_in, t_out, track, inner, anchor))
+        for l in lines: js(l)
+        transition(b, t_in, t_out)
+        STAGE_CUES.extend(cues)
     else:
         raise SystemExit("unknown beat type %r" % t)
     track += 1
+
+# ---- stage scene sounds: sfx/ui-<name>.wav (the earshot UI kit in --shared sfx/), typing = sfx/typing.mp3 -------------
+def _sound_len(path):
+    try:
+        import wave
+        with wave.open(path) as w:
+            return w.getnframes() / float(w.getframerate())
+    except Exception:
+        return 1.0
+_cue_json, _missing = [], set()
+for ci, c in enumerate(sorted(STAGE_CUES, key=lambda c: c[1])):
+    name, at, vol = c[0], float(c[1]), float(c[2])
+    src = "sfx/typing.mp3" if name == "typing" else "sfx/ui-%s.wav" % name
+    if not os.path.exists(os.path.join(OUT, src)):
+        _missing.add(src); continue
+    dur = float(c[3]) if len(c) > 3 else _sound_len(os.path.join(OUT, src))
+    audio_parts.append('    <audio id="sfx-stage-%d" src="%s" data-start="%.3f" data-duration="%.2f" data-track-index="%d" data-volume="%.2f"></audio>\n'
+                       % (ci, src, at, dur, 30 + ci % 12, vol))
+    _cue_json.append({"src": src, "at": round(at, 3), "volume": vol} if len(c) <= 3 else {"src": src, "at": round(at, 3), "volume": vol, "dur": round(dur, 2)})
+open(os.path.join(OUT, "sfx-cues.json"), "w").write(json.dumps(_cue_json, indent=1))
+if _missing:
+    print("note: stage sounds missing from %s/sfx (make the earshot UI kit, SKILL.md \"Stage scenes\"): %s" % (OUT, " ".join(sorted(_missing))))
 
 # ---- camera -----------------------------------------------------------------------------------------
 cam = ["tl.set('#video-zoom', { scale: 1.0 }, 0);", "tl.set('#video-wrap', { scale: 1.0, x: 0 }, 0);"]
@@ -2253,7 +2290,12 @@ beats += [(float(b["in"]), b["id"]) for b in S.get("beats", [])]
 print("wrote %s/index.html: %d beats, %d camera ops, %d sounds" % (OUT, len(beats), len(S.get("camera", [])), len(audio_parts)))
 print("snapshot moments:", " ".join("%.2f" % (t + 0.9) for t, _ in beats))
 # format usage, for the "two formats compete: use the one used least so far in this video" rule (SKILL.md)
-seq = sorted((float(b["in"]), b["type"] + ("m" if b.get("morph") else "")) for b in S.get("beats", []))
+def _device(b):   # a stage scene is a stage of something: its lead element decides the device (rows, window, count...)
+    if b["type"] == "stage":
+        ks = [e["k"] for e in b.get("els", []) if e["k"] not in ("wire", "pill", "text")]
+        return "stage:" + (ks[0] if ks else "text")
+    return b["type"] + ("m" if b.get("morph") else "")
+seq = sorted((float(b["in"]), _device(b)) for b in S.get("beats", []))
 counts = {}
 for _, ty in seq:
     counts[ty] = counts.get(ty, 0) + 1

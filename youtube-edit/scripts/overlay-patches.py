@@ -75,6 +75,9 @@ if a.composite:
     if not a.out: sys.exit("--composite needs --out")
     sfx = json.load(open(a.storyboard)).get("sfx_mix", []) if a.storyboard else []
     sfx_root = os.path.dirname(a.storyboard) if a.storyboard else "."
+    cues = os.path.join(a.public or os.path.join(sfx_root, "public"), "sfx-cues.json")
+    if os.path.exists(cues):     # stage scenes' sounds, one per on-screen event, written by compose.py
+        sfx = sfx + json.load(open(cues))
     cmd = ["ffmpeg", "-y", "-v", "error", "-i", a.base]
     for n, _, _ in wins:
         p = os.path.join(a.patches, n + ".mp4")
@@ -90,7 +93,8 @@ if a.composite:
     k, mix = len(wins) + 1, ["[0:a]"]
     for j, s in enumerate(sfx):
         ms = int(round(float(s["at"]) * 1000))
-        fc.append("[%d:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=%.3f,adelay=%d|%d[s%d]" % (k + j, s.get("volume", 0.33), ms, ms, j))
+        trim = ",atrim=0:%.3f" % float(s["dur"]) if s.get("dur") else ""
+        fc.append("[%d:a]aformat=sample_rates=48000:channel_layouts=stereo%s,volume=%.3f,adelay=%d|%d[s%d]" % (k + j, trim, s.get("volume", 0.33), ms, ms, j))
         mix.append("[s%d]" % j)
     fc.append("%samix=inputs=%d:duration=first:normalize=0[a]" % ("".join(mix), len(mix)))
     venc = ["-c:v", a.encoder] + (["-b:v", "45M", "-maxrate", "60M"] if a.encoder != "libx264" else ["-crf", "16", "-preset", "medium"])
